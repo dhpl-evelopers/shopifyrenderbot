@@ -283,13 +283,12 @@ class OAuthService:
         client = OAuth2Session(
             client_id=Config.GOOGLE_CLIENT_ID,
             redirect_uri=Config.REDIRECT_URI,
-            scope="openid email profile"  # ✅ this must be here!
+            scope="openid email profile"
         )
 
-        # Remove `scope` from below and use only required extras
+        # ✅ REMOVE response_type, it's added automatically
         auth_url, _ = client.create_authorization_url(
             "https://accounts.google.com/o/oauth2/v2/auth",
-            response_type="code",
             access_type="offline",
             prompt="consent",
             include_granted_scopes="true",
@@ -298,6 +297,7 @@ class OAuthService:
 
         print("✅ FINAL GOOGLE AUTH URL:", auth_url)
         return auth_url
+
 
 
 
