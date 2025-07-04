@@ -280,25 +280,25 @@ logger = logging.getLogger(__name__)
 class OAuthService:
     @staticmethod
     def get_google_auth_url():
-        # ✅ Step 1: Set scope while creating session
         client = OAuth2Session(
             client_id=Config.GOOGLE_CLIENT_ID,
             redirect_uri=Config.REDIRECT_URI,
-            scope="openid email profile"   # ✅ MUST be set here
+            scope="openid email profile"  # ✅ this must be here!
         )
 
-        # ✅ Step 2: Include all required params
+        # Remove `scope` from below and use only required extras
         auth_url, _ = client.create_authorization_url(
             "https://accounts.google.com/o/oauth2/v2/auth",
-            response_type="code",                    # ✅ REQUIRED
+            response_type="code",
             access_type="offline",
             prompt="consent",
             include_granted_scopes="true",
             state="google"
         )
 
-        print("🔗 GOOGLE AUTH URL:", auth_url)
+        print("✅ FINAL GOOGLE AUTH URL:", auth_url)
         return auth_url
+
 
 
 
