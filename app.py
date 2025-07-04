@@ -285,20 +285,19 @@ class OAuthService:
             scope="openid email profile"
         )
 
-        extra_params = {
-            "access_type": "offline",
-            "prompt": "consent",
-            "include_granted_scopes": "true",
-            "response_type": "code"
-        }
-
+        # ✅ All required parameters including response_type
         auth_url, _ = client.create_authorization_url(
             "https://accounts.google.com/o/oauth2/v2/auth",
-            **extra_params
+            response_type="code",
+            access_type="offline",
+            prompt="consent",
+            include_granted_scopes="true",
+            state="google"
         )
 
-        print("🔗 GOOGLE AUTH URL:", auth_url)
+        print("🔗 GOOGLE AUTH URL:", auth_url)  # Optional for debugging
         return auth_url
+
 
 
 
