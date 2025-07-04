@@ -281,24 +281,25 @@ class OAuthService:
     def get_google_auth_url():
         client = OAuth2Session(
             client_id=Config.GOOGLE_CLIENT_ID,
-            redirect_uri=Config.REDIRECT_URI
+            redirect_uri=Config.REDIRECT_URI,
+            scope="openid email profile"
         )
 
         extra_params = {
+            "access_type": "offline",
+            "prompt": "consent",
+            "include_granted_scopes": "true",
             "response_type": "code"
         }
 
         auth_url, _ = client.create_authorization_url(
             "https://accounts.google.com/o/oauth2/v2/auth",
-            scope="openid email profile",
-            state="google",
-            access_type="offline",
-            prompt="consent",
             **extra_params
         )
 
-        print("🔗 GOOGLE AUTH URL:", auth_url)  # Add this debug
+        print("🔗 GOOGLE AUTH URL:", auth_url)
         return auth_url
+
 
 
 
