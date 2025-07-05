@@ -326,20 +326,20 @@ class OAuthService:
             logger.error(f"OAuth callback failed: {str(e)}")
             return None
 
-    @staticmethod
-    @staticmethod
+    
+@staticmethod
 def handle_oauth_callback():
     query_params = st.query_params
     code = query_params.get("code")
     state = query_params.get("state")
     error = query_params.get("error")
+    redirect_url = query_params.get("redirect")  # ✅ new line
 
     if error:
         st.error(f"OAuth error: {error}")
         return
 
     if code and state:
-        # ✅ Validate stored state
         if state != st.session_state.get("oauth_state"):
             st.error("Invalid OAuth state")
             return
@@ -354,11 +354,9 @@ def handle_oauth_callback():
                 st.error("No email address returned")
                 return
 
-            # ✅ Clean session state
             del st.session_state['oauth_state']
             del st.session_state['oauth_timestamp']
 
-            # ✅ Create or get user
             user = storage.get_user(email)
             if not user:
                 user = storage.create_user(
@@ -373,14 +371,20 @@ def handle_oauth_callback():
             if user:
                 complete_login(user)
 
-                # ✅ Clear /auth/callback?code=... from URL
+                # ✅ Step 2A: Clear URL query
                 st.experimental_set_query_params()
 
-                # ✅ Force app to reload at clean state
-                st.rerun()
+                # ✅ Step 2B: Redirect to Shopify if coming from there
+                if redirect_url:
+                    st.success("Redirecting you...")
+                    st.markdown(f"<meta http-equiv='refresh' content='1; url={redirect_url}'>", unsafe_allow_html=True)
+                    return
+
+                st.rerun()  # Otherwise rerun to show chatbot
 
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
+
 
 
 
