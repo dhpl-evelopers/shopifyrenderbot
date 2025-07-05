@@ -282,7 +282,9 @@ class OAuthService:
     @staticmethod
     def get_google_auth_url():
         try:
-            # Store timestamp when generating auth URL
+            # Generate a unique state and store it
+            state = str(uuid.uuid4())
+            st.session_state.oauth_state = state
             st.session_state.oauth_timestamp = time.time()
             
             client = OAuth2Session(
@@ -291,67 +293,46 @@ class OAuthService:
                 scope="openid email profile"
             )
             
-            auth_url, state = client.create_authorization_url(
+            auth_url, _ = client.create_authorization_url(
                 "https://accounts.google.com/o/oauth2/v2/auth",
                 access_type="offline",
                 prompt="consent",
-                include_granted_scopes="true"
+                state=state  # Use the generated state
             )
             
-            # Store state for validation
-            st.session_state.oauth_state = state
-            logger.info(f"Generated auth URL with state: {state}")
             return auth_url
-            
         except Exception as e:
-            logger.error(f"Auth URL generation failed: {str(e)}")
-            st.error("Failed to initialize authentication")
+            logger.error(f"Error generating Google Auth URL: {str(e)}")
             return None
 
     @staticmethod
     def handle_google_callback(code):
         try:
-            # Validate code freshness (5 minute expiry)
-            if (time.time() - st.session_state.get('oauth_timestamp', 0)) > 300:
-                raise ValueError("Authorization code expired")
-            
+            # Validate state first
+            if 'oauth_state' not in st.session_state:
+                raise ValueError("Missing OAuth state")
+                
             client = OAuth2Session(
                 client_id=Config.GOOGLE_CLIENT_ID,
                 redirect_uri=Config.REDIRECT_URI,
-                state=st.session_state.get('oauth_state')
+                state=st.session_state.oauth_state
             )
-            
-            # Add timeout and better error handling
+
             token = client.fetch_token(
                 "https://oauth2.googleapis.com/token",
                 code=code,
                 client_secret=Config.GOOGLE_CLIENT_SECRET,
                 timeout=10
             )
-            
-            # Verify token contains required fields
-            if not all(k in token for k in ['access_token', 'token_type']):
-                raise ValueError("Invalid token response")
-            
-            # Get user info with proper error handling
-            response = client.get(
-                "https://www.googleapis.com/oauth2/v3/userinfo",
-                timeout=10
-            )
+
+            # Get user info with error handling
+            response = client.get("https://www.googleapis.com/oauth2/v3/userinfo", timeout=10)
             response.raise_for_status()
-            
             return response.json()
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"OAuth network error: {str(e)}")
-            st.error("Connection error during authentication")
-        except ValueError as e:
-            logger.error(f"OAuth validation error: {str(e)}")
-            st.error("Invalid authentication response")
+
         except Exception as e:
-            logger.error(f"Unexpected OAuth error: {str(e)}")
-            st.error("Authentication failed unexpectedly")
-        return None
+            logger.error(f"OAuth callback failed: {str(e)}")
+            return None
 # --- HELPER FUNCTIONS ---
 
 
