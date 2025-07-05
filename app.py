@@ -1298,12 +1298,15 @@ def handle_oauth_callback():
         st.error(f"OAuth error: {error}")
         return
 
-    if code and state == "google":
+    if code and state == st.session_state.get("oauth_state"):  # Validate state matches
         try:
             user_info = OAuthService.handle_google_callback(code)
             if user_info:
                 email = user_info.get("email")
                 if email:
+                    # Clear query params immediately to prevent re-processing
+                    st.query_params.clear()
+                    
                     user = storage.get_user(email)
                     if not user:
                         user = storage.create_user(
@@ -1314,25 +1317,27 @@ def handle_oauth_callback():
                             first_name=user_info.get("given_name", ""),
                             last_name=user_info.get("family_name", "")
                         )
+                    
                     if user:
+                        # Force a new session state
+                        st.session_state.clear()
                         complete_login(user)
-
-                        # ✅ Shopify return redirect logic here
-                        redirect_param = st.query_params.get("redirect")
-                        if st.session_state.get("logged_in") and redirect_param == "return":
+                        
+                        # Add small delay before Shopify redirect to ensure session is set
+                        if st.query_params.get("redirect") == "return":
                             st.markdown("""
                                 <script>
-                                    const returnUrl = localStorage.getItem("shopify_return_url");
-                                    if (returnUrl) {
-                                        alert("Thanks for using RingExpert! Returning to your shopping...");
-                                        setTimeout(() => {
+                                    setTimeout(() => {
+                                        const returnUrl = localStorage.getItem("shopify_return_url");
+                                        if (returnUrl) {
                                             window.location.href = returnUrl;
-                                        }, 1500);
-                                    }
+                                        }
+                                    }, 500);
                                 </script>
                             """, unsafe_allow_html=True)
-
-                        st.query_params.clear()
+                        else:
+                            # Force a rerun to ensure all state is properly loaded
+                            st.rerun()
 
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
