@@ -287,37 +287,40 @@ class OAuthService:
             client = OAuth2Session(
                 client_id=Config.GOOGLE_CLIENT_ID,
                 redirect_uri=Config.REDIRECT_URI,
-                scope="openid email profile",
-                state="google"
+                scope="openid email profile"
             )
             
-            auth_url, _ = client.create_authorization_url(
+            auth_url, state = client.create_authorization_url(
                 "https://accounts.google.com/o/oauth2/v2/auth",
                 access_type="offline",
                 prompt="consent",
                 include_granted_scopes="true"
             )
             
-            logger.info(f"Generated auth URL: {auth_url}")
+            # Store state for validation
+            st.session_state.oauth_state = state
+            logger.info(f"Generated auth URL with state: {state}")
             return auth_url
             
         except Exception as e:
             logger.error(f"Auth URL generation failed: {str(e)}")
-            raise
+            st.error("Failed to initialize authentication")
+            return None
 
     @staticmethod
     def handle_google_callback(code):
         try:
-            # Validate code freshness
+            # Validate code freshness (5 minute expiry)
             if (time.time() - st.session_state.get('oauth_timestamp', 0)) > 300:
                 raise ValueError("Authorization code expired")
             
             client = OAuth2Session(
                 client_id=Config.GOOGLE_CLIENT_ID,
-                redirect_uri=Config.REDIRECT_URI
+                redirect_uri=Config.REDIRECT_URI,
+                state=st.session_state.get('oauth_state')
             )
             
-            # Add timeout and error handling
+            # Add timeout and better error handling
             token = client.fetch_token(
                 "https://oauth2.googleapis.com/token",
                 code=code,
@@ -325,11 +328,11 @@ class OAuthService:
                 timeout=10
             )
             
-            # Verify token structure
+            # Verify token contains required fields
             if not all(k in token for k in ['access_token', 'token_type']):
                 raise ValueError("Invalid token response")
             
-            # Get user info with error handling
+            # Get user info with proper error handling
             response = client.get(
                 "https://www.googleapis.com/oauth2/v3/userinfo",
                 timeout=10
