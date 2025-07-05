@@ -280,63 +280,74 @@ logger = logging.getLogger(__name__)
 class OAuthService:
     @staticmethod
     def get_google_auth_url():
-        # Get the current URL from query params if available
-        current_url = st.query_params.get("current_url", Config.REDIRECT_URI)
-        
-        # Standardize the redirect URI (remove query params and ensure proper protocol)
-        redirect_uri = current_url.split('?')[0].split('#')[0]
-        if not redirect_uri.startswith(('http://', 'https://')):
-            redirect_uri = Config.REDIRECT_URI  # fallback to configured URI
+        try:
+            # Store timestamp when generating auth URL
+            st.session_state.oauth_timestamp = time.time()
             
-        logger.info(f"🔗 Using redirect URI: {redirect_uri}")
-
-        client = OAuth2Session(
-            client_id=Config.GOOGLE_CLIENT_ID,
-            redirect_uri=redirect_uri,
-            scope="openid email profile"
-        )
-
-        auth_url, _ = client.create_authorization_url(
-            "https://accounts.google.com/o/oauth2/v2/auth",
-            access_type="offline",
-            prompt="consent",
-            include_granted_scopes="true",
-            state="google"
-        )
-
-        logger.info(f"✅ Generated auth URL: {auth_url}")
-        return auth_url
+            client = OAuth2Session(
+                client_id=Config.GOOGLE_CLIENT_ID,
+                redirect_uri=Config.REDIRECT_URI,
+                scope="openid email profile",
+                state="google"
+            )
+            
+            auth_url, _ = client.create_authorization_url(
+                "https://accounts.google.com/o/oauth2/v2/auth",
+                access_type="offline",
+                prompt="consent",
+                include_granted_scopes="true"
+            )
+            
+            logger.info(f"Generated auth URL: {auth_url}")
+            return auth_url
+            
+        except Exception as e:
+            logger.error(f"Auth URL generation failed: {str(e)}")
+            raise
 
     @staticmethod
     def handle_google_callback(code):
         try:
-            # Get the same redirect_uri used in the initial request
-            current_url = st.query_params.get("current_url", Config.REDIRECT_URI)
-            redirect_uri = current_url.split('?')[0].split('#')[0]
+            # Validate code freshness
+            if (time.time() - st.session_state.get('oauth_timestamp', 0)) > 300:
+                raise ValueError("Authorization code expired")
             
-            logger.info(f"🔄 Handling callback with redirect_uri: {redirect_uri}")
-
             client = OAuth2Session(
                 client_id=Config.GOOGLE_CLIENT_ID,
-                redirect_uri=redirect_uri
+                redirect_uri=Config.REDIRECT_URI
             )
             
+            # Add timeout and error handling
             token = client.fetch_token(
                 "https://oauth2.googleapis.com/token",
                 code=code,
                 client_secret=Config.GOOGLE_CLIENT_SECRET,
-                authorization_response=st.query_params.get("current_url", "")
+                timeout=10
             )
             
-            user_info = client.get("https://www.googleapis.com/oauth2/v3/userinfo").json()
-            logger.info(f"✅ Successfully authenticated user: {user_info.get('email')}")
-            return user_info
+            # Verify token structure
+            if not all(k in token for k in ['access_token', 'token_type']):
+                raise ValueError("Invalid token response")
             
+            # Get user info with error handling
+            response = client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                timeout=10
+            )
+            response.raise_for_status()
+            
+            return response.json()
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"OAuth network error: {str(e)}")
+            st.error("Connection error during authentication")
+        except ValueError as e:
+            logger.error(f"OAuth validation error: {str(e)}")
+            st.error("Invalid authentication response")
         except Exception as e:
-            logger.error(f"❌ OAuth callback failed: {str(e)}")
-            st.error(f"Authentication failed: {str(e)}")
-            return None
-
+            logger.error(f"Unexpected OAuth error: {str(e)}")
+            st.error("Authentication failed unexpectedly")
+        return None
 # --- HELPER FUNCTIONS ---
 
 
