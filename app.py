@@ -306,33 +306,54 @@ class OAuthService:
             return None
 
     @staticmethod
-    def handle_google_callback(code):
+   def handle_oauth_callback():
+    query_params = st.query_params
+    code = query_params.get("code")
+    state = query_params.get("state")
+    error = query_params.get("error")
+
+    if error:
+        st.error(f"OAuth error: {error}")
+        return
+
+    if code and state:
+        # Validate state matches what we stored
+        if state != st.session_state.get("oauth_state"):
+            st.error("Invalid OAuth state")
+            return
+            
         try:
-            # Validate state first
-            if 'oauth_state' not in st.session_state:
-                raise ValueError("Missing OAuth state")
+            user_info = OAuthService.handle_google_callback(code)
+            if not user_info:
+                return
                 
-            client = OAuth2Session(
-                client_id=Config.GOOGLE_CLIENT_ID,
-                redirect_uri=Config.REDIRECT_URI,
-                state=st.session_state.oauth_state
-            )
-
-            token = client.fetch_token(
-                "https://oauth2.googleapis.com/token",
-                code=code,
-                client_secret=Config.GOOGLE_CLIENT_SECRET,
-                timeout=10
-            )
-
-            # Get user info with error handling
-            response = client.get("https://www.googleapis.com/oauth2/v3/userinfo", timeout=10)
-            response.raise_for_status()
-            return response.json()
+            email = user_info.get("email")
+            if not email:
+                st.error("No email address returned")
+                return
+                
+            # Clear OAuth state immediately
+            del st.session_state['oauth_state']
+            del st.session_state['oauth_timestamp']
+            
+            # Get or create user
+            user = storage.get_user(email)
+            if not user:
+                user = storage.create_user(
+                    email=email,
+                    provider="google",
+                    username=email.split('@')[0],
+                    full_name=user_info.get("name", ""),
+                    first_name=user_info.get("given_name", ""),
+                    last_name=user_info.get("family_name", "")
+                )
+            
+            if user:
+                complete_login(user)
+                st.rerun()
 
         except Exception as e:
-            logger.error(f"OAuth callback failed: {str(e)}")
-            return None
+            st.error(f"Authentication failed: {str(e)}")
 # --- HELPER FUNCTIONS ---
 
 
