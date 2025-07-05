@@ -280,10 +280,19 @@ logger = logging.getLogger(__name__)
 class OAuthService:
     @staticmethod
     def get_google_auth_url():
-        # ✅ SCOPE must be included HERE (not in auth_url)
+        # Get the current URL from query params if available
+        current_url = st.query_params.get("current_url", Config.REDIRECT_URI)
+        
+        # Standardize the redirect URI (remove query params and ensure proper protocol)
+        redirect_uri = current_url.split('?')[0].split('#')[0]
+        if not redirect_uri.startswith(('http://', 'https://')):
+            redirect_uri = Config.REDIRECT_URI  # fallback to configured URI
+            
+        logger.info(f"🔗 Using redirect URI: {redirect_uri}")
+
         client = OAuth2Session(
             client_id=Config.GOOGLE_CLIENT_ID,
-            redirect_uri=Config.REDIRECT_URI,
+            redirect_uri=redirect_uri,
             scope="openid email profile"
         )
 
@@ -295,31 +304,37 @@ class OAuthService:
             state="google"
         )
 
-        print("✅ FINAL AUTH URL:", auth_url)
+        logger.info(f"✅ Generated auth URL: {auth_url}")
         return auth_url
-
-
-
-
-
-
 
     @staticmethod
     def handle_google_callback(code):
         try:
+            # Get the same redirect_uri used in the initial request
+            current_url = st.query_params.get("current_url", Config.REDIRECT_URI)
+            redirect_uri = current_url.split('?')[0].split('#')[0]
+            
+            logger.info(f"🔄 Handling callback with redirect_uri: {redirect_uri}")
+
             client = OAuth2Session(
                 client_id=Config.GOOGLE_CLIENT_ID,
-                redirect_uri=Config.REDIRECT_URI
+                redirect_uri=redirect_uri
             )
+            
             token = client.fetch_token(
                 "https://oauth2.googleapis.com/token",
                 code=code,
-                client_secret=Config.GOOGLE_CLIENT_SECRET
+                client_secret=Config.GOOGLE_CLIENT_SECRET,
+                authorization_response=st.query_params.get("current_url", "")
             )
+            
             user_info = client.get("https://www.googleapis.com/oauth2/v3/userinfo").json()
+            logger.info(f"✅ Successfully authenticated user: {user_info.get('email')}")
             return user_info
+            
         except Exception as e:
-            logger.error(f"OAuth callback failed: {str(e)}")
+            logger.error(f"❌ OAuth callback failed: {str(e)}")
+            st.error(f"Authentication failed: {str(e)}")
             return None
 
 # --- HELPER FUNCTIONS ---
