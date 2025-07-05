@@ -371,19 +371,21 @@ def handle_oauth_callback():
             if user:
                 complete_login(user)
 
-                # ✅ Step 2A: Clear URL query
+                # ✅ Clear /auth/callback?code=... from URL
                 st.experimental_set_query_params()
 
-                # ✅ Step 2B: Redirect to Shopify if coming from there
+                # ✅ Handle optional redirect (from Shopify)
                 if redirect_url:
-                    st.success("Redirecting you...")
+                    st.success("Redirecting you back...")
                     st.markdown(f"<meta http-equiv='refresh' content='1; url={redirect_url}'>", unsafe_allow_html=True)
                     return
 
-                st.rerun()  # Otherwise rerun to show chatbot
+                # ✅ Otherwise rerun chatbot
+                st.rerun()
 
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
+
 
 
 
