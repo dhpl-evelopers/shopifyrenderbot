@@ -286,23 +286,44 @@ class OAuthService:
             state = str(uuid.uuid4())
             st.session_state.oauth_state = state
             st.session_state.oauth_timestamp = time.time()
-            
+
             client = OAuth2Session(
                 client_id=Config.GOOGLE_CLIENT_ID,
                 redirect_uri=Config.REDIRECT_URI,
                 scope="openid email profile"
             )
-            
+
             auth_url, _ = client.create_authorization_url(
                 "https://accounts.google.com/o/oauth2/v2/auth",
                 access_type="offline",
                 prompt="consent",
-                state=state  # Use the generated state
+                state=state
             )
-            
+
             return auth_url
         except Exception as e:
             logger.error(f"Error generating Google Auth URL: {str(e)}")
+            return None
+
+    @staticmethod
+    def handle_google_callback(code):  # ✅ Fixed: added @staticmethod
+        try:
+            client = OAuth2Session(
+                client_id=Config.GOOGLE_CLIENT_ID,
+                redirect_uri=Config.REDIRECT_URI
+            )
+
+            token = client.fetch_token(
+                "https://oauth2.googleapis.com/token",
+                code=code,
+                client_secret=Config.GOOGLE_CLIENT_SECRET
+            )
+
+            user_info = client.get("https://www.googleapis.com/oauth2/v3/userinfo").json()
+            return user_info
+
+        except Exception as e:
+            logger.error(f"OAuth callback failed: {str(e)}")
             return None
 
     @staticmethod
@@ -317,26 +338,23 @@ class OAuthService:
             return
 
         if code and state:
-            # Validate state matches what we stored
             if state != st.session_state.get("oauth_state"):
                 st.error("Invalid OAuth state")
                 return
-                
+
             try:
                 user_info = OAuthService.handle_google_callback(code)
                 if not user_info:
                     return
-                    
+
                 email = user_info.get("email")
                 if not email:
                     st.error("No email address returned")
                     return
-                    
-                # Clear OAuth state immediately
-                del st.session_state['oauth_state']
-                del st.session_state['oauth_timestamp']
-                
-                # Get or create user
+
+                del st.session_state["oauth_state"]
+                del st.session_state["oauth_timestamp"]
+
                 user = storage.get_user(email)
                 if not user:
                     user = storage.create_user(
@@ -347,13 +365,14 @@ class OAuthService:
                         first_name=user_info.get("given_name", ""),
                         last_name=user_info.get("family_name", "")
                     )
-                
+
                 if user:
                     complete_login(user)
                     st.rerun()
 
             except Exception as e:
                 st.error(f"Authentication failed: {str(e)}")
+
 
 
 # --- HELPER FUNCTIONS ---
