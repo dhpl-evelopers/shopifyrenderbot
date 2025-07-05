@@ -577,15 +577,11 @@ def show_login_form():
         st.markdown("### 🔐 Reset Your Password")
 
         with st.form("forgot_password_form"):
-            reset_email = st.text_input(
-                "Registered Email", placeholder="you@example.com")
-            new_password = st.text_input(
-                "New Password", type="password", placeholder="Create a new password")
-            confirm_password = st.text_input(
-                "Confirm New Password", type="password")
+            reset_email = st.text_input("Registered Email", placeholder="you@example.com")
+            new_password = st.text_input("New Password", type="password", placeholder="Create a new password")
+            confirm_password = st.text_input("Confirm New Password", type="password")
 
-            submit_btn = st.form_submit_button(
-                "Update Password", type="primary")
+            submit_btn = st.form_submit_button("Update Password", type="primary")
 
             if submit_btn:
                 if not validate_email(reset_email):
@@ -600,12 +596,9 @@ def show_login_form():
                         st.error(msg)
                     else:
                         user_data = storage.get_user(reset_email)
-                        user_data["password"] = storage._hash_password(
-                            new_password)
-                        storage.upload_blob(
-                            f"users/{reset_email}.json", user_data)
-                        st.success(
-                            "✅ Password updated successfully! Please log in with your new password.")
+                        user_data["password"] = storage._hash_password(new_password)
+                        storage.upload_blob(f"users/{reset_email}.json", user_data)
+                        st.success("✅ Password updated successfully! Please log in with your new password.")
                         st.session_state.show_forgot_password = False
                         st.rerun()
 
@@ -615,12 +608,9 @@ def show_login_form():
 
     else:
         with st.form(key="login_form"):
-            email = st.text_input(
-                "Email Address", key="login_email", placeholder="Enter your email")
-            password = st.text_input(
-                "Password", type="password", key="login_password", placeholder="Enter your password")
+            email = st.text_input("Email Address", key="login_email", placeholder="Enter your email")
+            password = st.text_input("Password", type="password", key="login_password", placeholder="Enter your password")
 
-            # Forgot Password Link (below password field)
             col1, col2 = st.columns([2, 1])
             with col2:
                 if st.form_submit_button("Forgot Password?", help="Reset your password", type="primary"):
@@ -690,12 +680,26 @@ def show_login_form():
 
         google_auth_url = OAuthService.get_google_auth_url()
         st.markdown(f"""
-    <form action="{google_auth_url}" method="get">
-        <button type="submit" class="google-btn">
-            <img src="{Config.GOOGLE_LOGO_URL}" class="google-logo">Sign in with Google
-        </button>
-    </form>
-""", unsafe_allow_html=True)
+        <a href="{google_auth_url}" target="_self" class="google-btn" style="
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            color: #757575;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            width: 100%;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s;
+            margin-top: 10px;
+        ">
+            <img src="{Config.GOOGLE_LOGO_URL}" class="google-logo" style="height: 18px; margin-right: 10px;">
+            Sign in with Google
+        </a>
+        """, unsafe_allow_html=True)
+
 
 
 
