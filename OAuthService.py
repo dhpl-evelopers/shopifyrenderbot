@@ -1,6 +1,6 @@
-from authlib.integrations.requests_client import OAuth2Session
-from config import Config
 import logging
+from authlib.integrations.requests_client import OAuth2Session
+from config import Config # Ensure this Config is the one you intend to use (preferably loaded from config.py)
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,6 @@ class OAuthService:
                 redirect_uri=Config.REDIRECT_URI
             )
 
-            # ✅ Correct authorization endpoint
             auth_url, _ = client.create_authorization_url(
                 "https://accounts.google.com/o/oauth2/v2/auth",
                 scope="openid email profile",
