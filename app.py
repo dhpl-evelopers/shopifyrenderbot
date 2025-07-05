@@ -285,12 +285,15 @@ class OAuthService:
             # Store timestamp when generating auth URL
             st.session_state.oauth_timestamp = time.time()
             
+            # Initialize OAuth2Session with proper configuration
             client = OAuth2Session(
                 client_id=Config.GOOGLE_CLIENT_ID,
                 redirect_uri=Config.REDIRECT_URI,
-                scope="openid email profile"
+                scope="openid email profile",
+                state="google"  # Explicitly set state parameter
             )
             
+            # Generate authorization URL with required parameters
             auth_url, state = client.create_authorization_url(
                 "https://accounts.google.com/o/oauth2/v2/auth",
                 access_type="offline",
@@ -298,30 +301,38 @@ class OAuthService:
                 include_granted_scopes="true"
             )
             
+            if not auth_url:
+                raise ValueError("Failed to generate authorization URL")
+                
             # Store state for validation
             st.session_state.oauth_state = state
             logger.info(f"Generated auth URL with state: {state}")
             return auth_url
             
         except Exception as e:
-            logger.error(f"Auth URL generation failed: {str(e)}")
-            st.error("Failed to initialize authentication")
+            logger.error(f"Auth URL generation failed: {str(e)}", exc_info=True)
+            st.error("Failed to initialize Google authentication. Please try again later.")
             return None
 
     @staticmethod
     def handle_google_callback(code):
         try:
+            # Validate we have the required state
+            if 'oauth_state' not in st.session_state:
+                raise ValueError("Missing OAuth state - possible CSRF attempt")
+                
             # Validate code freshness (5 minute expiry)
             if (time.time() - st.session_state.get('oauth_timestamp', 0)) > 300:
                 raise ValueError("Authorization code expired")
             
+            # Initialize client with state
             client = OAuth2Session(
                 client_id=Config.GOOGLE_CLIENT_ID,
                 redirect_uri=Config.REDIRECT_URI,
-                state=st.session_state.get('oauth_state')
+                state=st.session_state.oauth_state
             )
             
-            # Add timeout and better error handling
+            # Fetch token with timeout
             token = client.fetch_token(
                 "https://oauth2.googleapis.com/token",
                 code=code,
@@ -331,26 +342,30 @@ class OAuthService:
             
             # Verify token contains required fields
             if not all(k in token for k in ['access_token', 'token_type']):
-                raise ValueError("Invalid token response")
+                raise ValueError("Invalid token response from Google")
             
-            # Get user info with proper error handling
+            # Get user info
             response = client.get(
                 "https://www.googleapis.com/oauth2/v3/userinfo",
                 timeout=10
             )
             response.raise_for_status()
             
-            return response.json()
+            user_info = response.json()
+            if 'email' not in user_info:
+                raise ValueError("Google did not return email address")
+                
+            return user_info
             
         except requests.exceptions.RequestException as e:
-            logger.error(f"OAuth network error: {str(e)}")
-            st.error("Connection error during authentication")
+            logger.error(f"OAuth network error: {str(e)}", exc_info=True)
+            st.error("Connection error during authentication. Please check your internet connection.")
         except ValueError as e:
-            logger.error(f"OAuth validation error: {str(e)}")
-            st.error("Invalid authentication response")
+            logger.error(f"OAuth validation error: {str(e)}", exc_info=True)
+            st.error("Invalid authentication response. Please try again.")
         except Exception as e:
-            logger.error(f"Unexpected OAuth error: {str(e)}")
-            st.error("Authentication failed unexpectedly")
+            logger.error(f"Unexpected OAuth error: {str(e)}", exc_info=True)
+            st.error("Authentication failed unexpectedly. Please contact support.")
         return None
 # --- HELPER FUNCTIONS ---
 
@@ -1294,49 +1309,81 @@ def handle_oauth_callback():
     state = query_params.get("state")
     error = query_params.get("error")
 
+    # Debug logging
+    logger.info(f"OAuth callback received - code: {code}, state: {state}, error: {error}")
+
     if error:
-        st.error(f"OAuth error: {error}")
+        error_desc = query_params.get("error_description", "")
+        logger.error(f"OAuth error: {error} - {error_desc}")
+        st.error(f"Authentication error: {error}. {error_desc}")
         return
 
     if code and state == "google":
         try:
+            logger.info("Attempting to handle Google OAuth callback")
+            
             user_info = OAuthService.handle_google_callback(code)
-            if user_info:
-                email = user_info.get("email")
-                if email:
-                    user = storage.get_user(email)
-                    if not user:
-                        user = storage.create_user(
-                            email=email,
-                            provider="google",
-                            username=email.split('@')[0],
-                            full_name=user_info.get("name", ""),
-                            first_name=user_info.get("given_name", ""),
-                            last_name=user_info.get("family_name", "")
-                        )
-                    if user:
-                        complete_login(user)
+            if not user_info:
+                logger.error("No user info returned from OAuthService.handle_google_callback")
+                st.error("Failed to authenticate with Google. Please try again.")
+                return
 
-                        # ✅ Shopify return redirect logic here
-                        redirect_param = st.query_params.get("redirect")
-                        if st.session_state.get("logged_in") and redirect_param == "return":
-                            st.markdown("""
-                                <script>
-                                    const returnUrl = localStorage.getItem("shopify_return_url");
-                                    if (returnUrl) {
-                                        alert("Thanks for using RingExpert! Returning to your shopping...");
-                                        setTimeout(() => {
-                                            window.location.href = returnUrl;
-                                        }, 1500);
-                                    }
-                                </script>
-                            """, unsafe_allow_html=True)
+            email = user_info.get("email")
+            if not email:
+                logger.error("Google OAuth response missing email")
+                st.error("Google didn't provide your email address. Please try again or use another login method.")
+                return
 
-                        st.query_params.clear()
+            logger.info(f"Authenticating user with email: {email}")
+            
+            # Get or create user
+            user = storage.get_user(email)
+            if not user:
+                logger.info(f"Creating new user for email: {email}")
+                user = storage.create_user(
+                    email=email,
+                    provider="google",
+                    username=email.split('@')[0],
+                    full_name=user_info.get("name", ""),
+                    first_name=user_info.get("given_name", ""),
+                    last_name=user_info.get("family_name", "")
+                )
+                if not user:
+                    logger.error("Failed to create user in storage")
+                    st.error("Failed to create your account. Please contact support.")
+                    return
+
+            # Complete login process
+            logger.info(f"Completing login for user: {email}")
+            complete_login(user)
+
+            # Shopify return redirect logic
+            redirect_param = st.query_params.get("redirect")
+            if st.session_state.get("logged_in") and redirect_param == "return":
+                logger.info("Handling Shopify return redirect")
+                st.markdown("""
+                    <script>
+                        const returnUrl = localStorage.getItem("shopify_return_url");
+                        if (returnUrl) {
+                            alert("Thanks for using RingExpert! Returning to your shopping...");
+                            setTimeout(() => {
+                                window.location.href = returnUrl;
+                            }, 1500);
+                        }
+                    </script>
+                """, unsafe_allow_html=True)
+
+            # Clear OAuth params from URL
+            st.query_params.clear()
+            logger.info("OAuth flow completed successfully")
 
         except Exception as e:
+            logger.error(f"Authentication failed: {str(e)}", exc_info=True)
             st.error(f"Authentication failed: {str(e)}")
-            logger.error(f"OAuth callback error: {str(e)}")
+            # Consider adding a "Try Again" button here
+            if st.button("Try Again"):
+                st.session_state.show_auth = True
+                st.rerun()
 
 
 def load_responsive_css():
