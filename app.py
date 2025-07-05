@@ -306,54 +306,55 @@ class OAuthService:
             return None
 
     @staticmethod
-def handle_oauth_callback():
-    query_params = st.query_params
-    code = query_params.get("code")
-    state = query_params.get("state")
-    error = query_params.get("error")
+    def handle_oauth_callback():
+        query_params = st.query_params
+        code = query_params.get("code")
+        state = query_params.get("state")
+        error = query_params.get("error")
 
-    if error:
-        st.error(f"OAuth error: {error}")
-        return
-
-    if code and state:
-        # Validate state matches what we stored
-        if state != st.session_state.get("oauth_state"):
-            st.error("Invalid OAuth state")
+        if error:
+            st.error(f"OAuth error: {error}")
             return
-            
-        try:
-            user_info = OAuthService.handle_google_callback(code)
-            if not user_info:
-                return
-                
-            email = user_info.get("email")
-            if not email:
-                st.error("No email address returned")
-                return
-                
-            # Clear OAuth state immediately
-            del st.session_state['oauth_state']
-            del st.session_state['oauth_timestamp']
-            
-            # Get or create user
-            user = storage.get_user(email)
-            if not user:
-                user = storage.create_user(
-                    email=email,
-                    provider="google",
-                    username=email.split('@')[0],
-                    full_name=user_info.get("name", ""),
-                    first_name=user_info.get("given_name", ""),
-                    last_name=user_info.get("family_name", "")
-                )
-            
-            if user:
-                complete_login(user)
-                st.rerun()
 
-        except Exception as e:
-            st.error(f"Authentication failed: {str(e)}")
+        if code and state:
+            # Validate state matches what we stored
+            if state != st.session_state.get("oauth_state"):
+                st.error("Invalid OAuth state")
+                return
+                
+            try:
+                user_info = OAuthService.handle_google_callback(code)
+                if not user_info:
+                    return
+                    
+                email = user_info.get("email")
+                if not email:
+                    st.error("No email address returned")
+                    return
+                    
+                # Clear OAuth state immediately
+                del st.session_state['oauth_state']
+                del st.session_state['oauth_timestamp']
+                
+                # Get or create user
+                user = storage.get_user(email)
+                if not user:
+                    user = storage.create_user(
+                        email=email,
+                        provider="google",
+                        username=email.split('@')[0],
+                        full_name=user_info.get("name", ""),
+                        first_name=user_info.get("given_name", ""),
+                        last_name=user_info.get("family_name", "")
+                    )
+                
+                if user:
+                    complete_login(user)
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"Authentication failed: {str(e)}")
+
 
 # --- HELPER FUNCTIONS ---
 
