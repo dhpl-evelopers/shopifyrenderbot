@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from azure.storage.blob import BlobServiceClient
 import json
 import uuid
+import urllib.parse
 from datetime import datetime
 from authlib.integrations.requests_client import OAuth2Session
 from config import Config
@@ -327,14 +328,13 @@ class OAuthService:
             return None
 
     
-
 @staticmethod
 def handle_oauth_callback():
     query_params = st.query_params
     code = query_params.get("code")
     state = query_params.get("state")
     error = query_params.get("error")
-    redirect_url = query_params.get("redirect")  # ✅ optional redirect
+    redirect_url = query_params.get("redirect")  # ✅ this might be a full encoded Shopify URL
 
     if error:
         st.error(f"OAuth error: {error}")
@@ -372,30 +372,22 @@ def handle_oauth_callback():
             if user:
                 complete_login(user)
 
-                # ✅ Clear /auth/callback?code=... from URL
+                # ✅ Clear the callback query string
                 st.experimental_set_query_params()
 
-                # ✅ Handle optional redirect (from Shopify)
-                redirect_param = query_params.get("redirect")
-                if redirect_param == "return":
-                    st.markdown("""
-                        <script>
-                            const returnUrl = localStorage.getItem("shopify_return_url");
-                            if (returnUrl) {
-                                alert("Thanks for using RingExpert! Returning to your shopping...");
-                                setTimeout(() => {
-                                    window.location.href = returnUrl;
-                                }, 1500);
-                            }
-                        </script>
-                    """, unsafe_allow_html=True)
+                # ✅ Final redirect (Shopify full URL)
+                if redirect_url:
+                    decoded_url = urllib.parse.unquote(redirect_url)
+                    st.success("Redirecting you back...")
+                    st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded_url}'>", unsafe_allow_html=True)
                     return
 
-                # ✅ Otherwise rerun chatbot UI
+                # ✅ Default rerun if no redirect
                 st.rerun()
 
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
+
 
 
 
