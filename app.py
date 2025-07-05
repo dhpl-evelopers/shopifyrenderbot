@@ -306,7 +306,7 @@ class OAuthService:
             return None
 
     @staticmethod
-   def handle_oauth_callback():
+def handle_oauth_callback():
     query_params = st.query_params
     code = query_params.get("code")
     state = query_params.get("state")
@@ -354,6 +354,7 @@ class OAuthService:
 
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
+
 # --- HELPER FUNCTIONS ---
 
 
