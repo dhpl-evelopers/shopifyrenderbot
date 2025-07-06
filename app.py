@@ -305,7 +305,7 @@ class OAuthService:
                 state=state
             )
 
-            return f"{auth_url}&redirect={encoded_redirect}"
+            return f"{auth_url}&redirect=return"
 
         except Exception as e:
             logger.error(f"Error generating Google Auth URL: {str(e)}")
