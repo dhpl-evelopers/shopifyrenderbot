@@ -381,14 +381,14 @@ def handle_oauth_callback():
             )
 
             if user:
-                complete_login(user)  # This should set session state
                 st.experimental_set_query_params()  # Clean up query URL
-
+                
                 if redirect_url:
                     decoded = urllib.parse.unquote(redirect_url)
-                    st.success("✅ Login successful! Redirecting...")
+                    st.success("Login successful! Redirecting...")
                     st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded}'>", unsafe_allow_html=True)
                     st.stop()
+
 
                 # Fallback rerun
                 st.rerun()
