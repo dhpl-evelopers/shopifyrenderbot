@@ -1695,18 +1695,15 @@ def restore_user_id_from_url():
 
 
 def main():
-    query_params = st.query_params
-
-    if "code" in query_params and "state" in query_params:
-        handle_oauth_callback()
-        return
-
+    handle_oauth_callback()  # ✅ Must be early
     restore_user_id_from_url()
+    
     threading.Thread(target=warm_up_bot).start()
+
     load_css()
     load_responsive_css()
 
-    show_chat_ui()  # ✅ Only show UI if not coming from OAuth
+    show_chat_ui()  # ✅ Your chatbot or main interface here
 
 if __name__ == "__main__":
     main()
