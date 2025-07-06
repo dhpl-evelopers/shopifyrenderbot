@@ -281,9 +281,8 @@ logger = logging.getLogger(__name__)
 
 class OAuthService:
     @staticmethod
-    @staticmethod
-def get_google_auth_url():
-    try:
+    def get_google_auth_url():
+        try:
         import urllib.parse
 
         state = str(uuid.uuid4())
