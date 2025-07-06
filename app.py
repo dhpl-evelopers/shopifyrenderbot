@@ -281,30 +281,41 @@ logger = logging.getLogger(__name__)
 
 class OAuthService:
     @staticmethod
-    def get_google_auth_url():
-        try:
-            # Generate a unique state and store it
-            state = str(uuid.uuid4())
-            st.session_state.oauth_state = state
-            st.session_state.oauth_timestamp = time.time()
+    @staticmethod
+def get_google_auth_url():
+    try:
+        # Generate state
+        state = str(uuid.uuid4())
+        st.session_state.oauth_state = state
+        st.session_state.oauth_timestamp = time.time()
 
-            client = OAuth2Session(
-                client_id=Config.GOOGLE_CLIENT_ID,
-                redirect_uri=Config.REDIRECT_URI,
-                scope="openid email profile"
-            )
+        # ✅ Get redirect param passed from frontend
+        query_params = st.query_params
+        redirect_url = query_params.get("redirect", "/")
+        st.session_state["shopify_return_url"] = redirect_url
+        encoded_redirect = urllib.parse.quote(redirect_url)
 
-            auth_url, _ = client.create_authorization_url(
-                "https://accounts.google.com/o/oauth2/v2/auth",
-                access_type="offline",
-                prompt="consent",
-                state=state
-            )
+        client = OAuth2Session(
+            client_id=Config.GOOGLE_CLIENT_ID,
+            redirect_uri=Config.REDIRECT_URI,
+            scope="openid email profile"
+        )
 
-            return auth_url
-        except Exception as e:
-            logger.error(f"Error generating Google Auth URL: {str(e)}")
-            return None
+        # ✅ Append `redirect` in callback
+        auth_url, _ = client.create_authorization_url(
+            "https://accounts.google.com/o/oauth2/v2/auth",
+            access_type="offline",
+            prompt="consent",
+            state=state
+        )
+
+        # ✅ Add redirect param to the final auth URL
+        full_auth_url = f"{auth_url}&redirect={encoded_redirect}"
+        return full_auth_url
+
+    except Exception as e:
+        logger.error(f"Error generating Google Auth URL: {str(e)}")
+        return None
 
     @staticmethod
     def handle_google_callback(code):  # ✅ Fixed: added @staticmethod
@@ -334,7 +345,7 @@ def handle_oauth_callback():
     code = query_params.get("code")
     state = query_params.get("state")
     error = query_params.get("error")
-    redirect_url = query_params.get("redirect")  # ✅ this might be a full encoded Shopify URL
+    redirect_url = query_params.get("redirect")  # ✅ full URL
 
     if error:
         st.error(f"OAuth error: {error}")
@@ -352,11 +363,12 @@ def handle_oauth_callback():
 
             email = user_info.get("email")
             if not email:
-                st.error("No email address returned")
+                st.error("No email returned")
                 return
 
-            del st.session_state['oauth_state']
-            del st.session_state['oauth_timestamp']
+            # Cleanup
+            del st.session_state["oauth_state"]
+            del st.session_state["oauth_timestamp"]
 
             user = storage.get_user(email)
             if not user:
@@ -371,28 +383,19 @@ def handle_oauth_callback():
 
             if user:
                 complete_login(user)
+                st.experimental_set_query_params()  # ✅ Clear query string
 
-                # ✅ Clear the callback query string
-                st.experimental_set_query_params()
-
-                # ✅ Final redirect (Shopify full URL)
+                # ✅ Final redirect to original Shopify page
                 if redirect_url:
                     decoded_url = urllib.parse.unquote(redirect_url)
-                    st.success("Redirecting you back...")
+                    st.success("Redirecting you back to Shopify...")
                     st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded_url}'>", unsafe_allow_html=True)
-                    return
+                    st.stop()
 
-                # ✅ Default rerun if no redirect
                 st.rerun()
 
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
-
-
-
-
-
-
 
 # --- HELPER FUNCTIONS ---
 
