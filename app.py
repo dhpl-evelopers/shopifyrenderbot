@@ -284,33 +284,34 @@ class OAuthService:
     @staticmethod
 def get_google_auth_url():
     try:
-        # Generate state
+        import urllib.parse
+
         state = str(uuid.uuid4())
         st.session_state.oauth_state = state
         st.session_state.oauth_timestamp = time.time()
 
-        # ✅ Get redirect param passed from frontend
+        # ✅ Get redirect param from Streamlit query
         query_params = st.query_params
-        redirect_url = query_params.get("redirect", "/")
-        st.session_state["shopify_return_url"] = redirect_url
+        redirect_url = query_params.get("redirect", "/")  # fallback if missing
+        st.session_state["shopify_return_url"] = redirect_url  # store for later
         encoded_redirect = urllib.parse.quote(redirect_url)
 
         client = OAuth2Session(
             client_id=Config.GOOGLE_CLIENT_ID,
-            redirect_uri=Config.REDIRECT_URI,
+            redirect_uri=Config.REDIRECT_URI,  # this will be https://.../auth/callback
             scope="openid email profile"
         )
 
-        # ✅ Append `redirect` in callback
         auth_url, _ = client.create_authorization_url(
             "https://accounts.google.com/o/oauth2/v2/auth",
             access_type="offline",
             prompt="consent",
-            state=state
+            state=state,
         )
 
-        # ✅ Add redirect param to the final auth URL
+        # ✅ Append `redirect` manually to the auth_url
         full_auth_url = f"{auth_url}&redirect={encoded_redirect}"
+
         return full_auth_url
 
     except Exception as e:
@@ -345,7 +346,7 @@ def handle_oauth_callback():
     code = query_params.get("code")
     state = query_params.get("state")
     error = query_params.get("error")
-    redirect_url = query_params.get("redirect")  # ✅ full URL
+    redirect_url = query_params.get("redirect")
 
     if error:
         st.error(f"OAuth error: {error}")
@@ -359,6 +360,7 @@ def handle_oauth_callback():
         try:
             user_info = OAuthService.handle_google_callback(code)
             if not user_info:
+                st.error("Failed to get user info")
                 return
 
             email = user_info.get("email")
@@ -366,36 +368,34 @@ def handle_oauth_callback():
                 st.error("No email returned")
                 return
 
-            # Cleanup
-            del st.session_state["oauth_state"]
-            del st.session_state["oauth_timestamp"]
+            # Clean up
+            st.session_state.pop("oauth_state", None)
+            st.session_state.pop("oauth_timestamp", None)
 
-            user = storage.get_user(email)
-            if not user:
-                user = storage.create_user(
-                    email=email,
-                    provider="google",
-                    username=email.split('@')[0],
-                    full_name=user_info.get("name", ""),
-                    first_name=user_info.get("given_name", ""),
-                    last_name=user_info.get("family_name", "")
-                )
+            # Save user
+            user = storage.get_user(email) or storage.create_user(
+                email=email,
+                provider="google",
+                username=email.split('@')[0],
+                full_name=user_info.get("name", ""),
+                first_name=user_info.get("given_name", ""),
+                last_name=user_info.get("family_name", "")
+            )
 
             if user:
                 complete_login(user)
-                st.experimental_set_query_params()  # ✅ Clear query string
+                st.experimental_set_query_params()
 
-                # ✅ Final redirect to original Shopify page
                 if redirect_url:
-                    decoded_url = urllib.parse.unquote(redirect_url)
-                    st.success("Redirecting you back to Shopify...")
-                    st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded_url}'>", unsafe_allow_html=True)
+                    decoded = urllib.parse.unquote(redirect_url)
+                    st.success("Redirecting...")
+                    st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded}'>", unsafe_allow_html=True)
                     st.stop()
 
                 st.rerun()
 
         except Exception as e:
-            st.error(f"Authentication failed: {str(e)}")
+            st.error(f"Auth failed: {str(e)}")
 
 # --- HELPER FUNCTIONS ---
 
