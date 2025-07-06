@@ -386,7 +386,11 @@ def handle_oauth_callback():
                 if redirect_url:
                     decoded = urllib.parse.unquote(redirect_url)  # ✅ Define it
                     st.success("Login successful! Redirecting...")
-                    st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded}'>", unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <script>
+                    window.location.href = "{decoded}";
+                    </script>
+                    """, unsafe_allow_html=True)
                     st.stop()
 
 
