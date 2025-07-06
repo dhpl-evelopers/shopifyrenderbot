@@ -1758,7 +1758,14 @@ def main():
     threading.Thread(target=warm_up_bot).start()
     load_css()
     load_responsive_css()
-    st.markdown("<style>[data-testid='collapsedControl'] { display: block !important; }</style>", unsafe_allow_html=True)
+    st.success("Login successful! Redirecting...")
+    st.markdown(f"""
+    <script>
+        window.location.href = "{decoded}";
+    </script>
+    """, unsafe_allow_html=True)
+    st.stop()
+
     show_chat_ui()
 
 
