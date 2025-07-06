@@ -1,13 +1,11 @@
 import streamlit as st
 import bcrypt
 import os
-import time  # Add this line with other imports
 import requests
 from dotenv import load_dotenv
 from azure.storage.blob import BlobServiceClient
 import json
 import uuid
-import urllib.parse
 from datetime import datetime
 from authlib.integrations.requests_client import OAuth2Session
 from config import Config
@@ -126,7 +124,7 @@ class Config:
     # OAuth Configuration
     GOOGLE_CLIENT_ID = "654156985064-vt48t8gj3qod98m4toivp6975lcdojom.apps.googleusercontent.com"
     GOOGLE_CLIENT_SECRET = "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"
-    REDIRECT_URI = "https://shopifyrenderbot.onrender.com/auth/callback"
+    REDIRECT_URI = "https://shopifyrenderbot.onrender.com/"
     IMAGE_API_URL = "https://ringexpert-backend.azurewebsites.net/generate-image"
     # API Configuration
     CHAT_API_URL = "https://ringexpert-backend.azurewebsites.net/ask"
@@ -282,117 +280,47 @@ logger = logging.getLogger(__name__)
 class OAuthService:
     @staticmethod
     def get_google_auth_url():
-        try:
-            # Generate a unique state and store it
-            state = str(uuid.uuid4())
-            st.session_state.oauth_state = state
-            st.session_state.oauth_timestamp = time.time()
+        # ✅ SCOPE must be included HERE (not in auth_url)
+        client = OAuth2Session(
+            client_id=Config.GOOGLE_CLIENT_ID,
+            redirect_uri=Config.REDIRECT_URI,
+            scope="openid email profile"
+        )
 
-            client = OAuth2Session(
-                client_id=Config.GOOGLE_CLIENT_ID,
-                redirect_uri=Config.REDIRECT_URI,
-                scope="openid email profile"
-            )
+        auth_url, _ = client.create_authorization_url(
+            "https://accounts.google.com/o/oauth2/v2/auth",
+            access_type="offline",
+            prompt="consent",
+            include_granted_scopes="true",
+            state="google"
+        )
 
-            auth_url, _ = client.create_authorization_url(
-                "https://accounts.google.com/o/oauth2/v2/auth",
-                access_type="offline",
-                prompt="consent",
-                state=state
-            )
+        print("✅ FINAL AUTH URL:", auth_url)
+        return auth_url
 
-            return auth_url
-        except Exception as e:
-            logger.error(f"Error generating Google Auth URL: {str(e)}")
-            return None
+
+
+
+
+
 
     @staticmethod
-    def handle_google_callback(code):  # ✅ Fixed: added @staticmethod
+    def handle_google_callback(code):
         try:
             client = OAuth2Session(
                 client_id=Config.GOOGLE_CLIENT_ID,
                 redirect_uri=Config.REDIRECT_URI
             )
-
             token = client.fetch_token(
                 "https://oauth2.googleapis.com/token",
                 code=code,
                 client_secret=Config.GOOGLE_CLIENT_SECRET
             )
-
             user_info = client.get("https://www.googleapis.com/oauth2/v3/userinfo").json()
             return user_info
-
         except Exception as e:
             logger.error(f"OAuth callback failed: {str(e)}")
             return None
-
-    
-@staticmethod
-def handle_oauth_callback():
-    query_params = st.query_params
-    code = query_params.get("code")
-    state = query_params.get("state")
-    error = query_params.get("error")
-    redirect_url = query_params.get("redirect")  # ✅ this might be a full encoded Shopify URL
-
-    if error:
-        st.error(f"OAuth error: {error}")
-        return
-
-    if code and state:
-        if state != st.session_state.get("oauth_state"):
-            st.error("Invalid OAuth state")
-            return
-
-        try:
-            user_info = OAuthService.handle_google_callback(code)
-            if not user_info:
-                return
-
-            email = user_info.get("email")
-            if not email:
-                st.error("No email address returned")
-                return
-
-            del st.session_state['oauth_state']
-            del st.session_state['oauth_timestamp']
-
-            user = storage.get_user(email)
-            if not user:
-                user = storage.create_user(
-                    email=email,
-                    provider="google",
-                    username=email.split('@')[0],
-                    full_name=user_info.get("name", ""),
-                    first_name=user_info.get("given_name", ""),
-                    last_name=user_info.get("family_name", "")
-                )
-
-            if user:
-                complete_login(user)
-
-                # ✅ Clear the callback query string
-                st.experimental_set_query_params()
-
-                # ✅ Final redirect (Shopify full URL)
-                if redirect_url:
-                    decoded_url = urllib.parse.unquote(redirect_url)
-                    st.success("Redirecting you back...")
-                    st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded_url}'>", unsafe_allow_html=True)
-                    return
-
-                # ✅ Default rerun if no redirect
-                st.rerun()
-
-        except Exception as e:
-            st.error(f"Authentication failed: {str(e)}")
-
-
-
-
-
-
 
 # --- HELPER FUNCTIONS ---
 
@@ -1340,15 +1268,12 @@ def handle_oauth_callback():
         st.error(f"OAuth error: {error}")
         return
 
-    if code and state == st.session_state.get("oauth_state"):  # Validate state matches
+    if code and state == "google":
         try:
             user_info = OAuthService.handle_google_callback(code)
             if user_info:
                 email = user_info.get("email")
                 if email:
-                    # Clear query params immediately to prevent re-processing
-                    st.query_params.clear()
-                    
                     user = storage.get_user(email)
                     if not user:
                         user = storage.create_user(
@@ -1359,27 +1284,25 @@ def handle_oauth_callback():
                             first_name=user_info.get("given_name", ""),
                             last_name=user_info.get("family_name", "")
                         )
-                    
                     if user:
-                        # Force a new session state
-                        st.session_state.clear()
                         complete_login(user)
-                        
-                        # Add small delay before Shopify redirect to ensure session is set
-                        if st.query_params.get("redirect") == "return":
+
+                        # ✅ Shopify return redirect logic here
+                        redirect_param = st.query_params.get("redirect")
+                        if st.session_state.get("logged_in") and redirect_param == "return":
                             st.markdown("""
                                 <script>
-                                    setTimeout(() => {
-                                        const returnUrl = localStorage.getItem("shopify_return_url");
-                                        if (returnUrl) {
+                                    const returnUrl = localStorage.getItem("shopify_return_url");
+                                    if (returnUrl) {
+                                        alert("Thanks for using RingExpert! Returning to your shopping...");
+                                        setTimeout(() => {
                                             window.location.href = returnUrl;
-                                        }
-                                    }, 500);
+                                        }, 1500);
+                                    }
                                 </script>
                             """, unsafe_allow_html=True)
-                        else:
-                            # Force a rerun to ensure all state is properly loaded
-                            st.rerun()
+
+                        st.query_params.clear()
 
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
