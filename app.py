@@ -1692,34 +1692,33 @@ def restore_user_id_from_url():
 
 
 def main():
-    handle_oauth_callback()
+    query_params = st.query_params
+
+    # ✅ Handle Google OAuth callback only if code and state are present
+    if "code" in query_params and "state" in query_params:
+        handle_oauth_callback()
+        return  # ✅ Stop further execution
+
     restore_user_id_from_url()
-
     threading.Thread(target=warm_up_bot).start()
-
     load_css()
     load_responsive_css()
 
     # Ensure sidebar toggle appears
     st.markdown("""<style>[data-testid="collapsedControl"] { display: block !important; }</style>""", unsafe_allow_html=True)
 
-    # ✅ FINAL FIX: Hide only Streamlit crown (Manage App) on all views
+    # Hide Streamlit top banner (Manage App)
     st.markdown("""
     <style>
     [data-testid="stStatusWidget"] {
         display: none !important;
         visibility: hidden !important;
     }
-    @media (max-width: 768px) {
-        [data-testid="stStatusWidget"] {
-            display: none !important;
-            visibility: hidden !important;
-        }
-    }
     </style>
     """, unsafe_allow_html=True)
 
     show_chat_ui()
+
 
 
 if __name__ == "__main__":
