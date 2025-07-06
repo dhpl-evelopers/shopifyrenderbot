@@ -1,13 +1,11 @@
 import streamlit as st
 import bcrypt
 import os
-import time  # Add this line with other imports
 import requests
 from dotenv import load_dotenv
 from azure.storage.blob import BlobServiceClient
 import json
 import uuid
-import urllib.parse
 from datetime import datetime
 from authlib.integrations.requests_client import OAuth2Session
 from config import Config
@@ -278,38 +276,33 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class OAuthService:
     @staticmethod
     def get_google_auth_url():
-        try:
-            state = str(uuid.uuid4())
-            st.session_state.oauth_state = state
-            st.session_state.oauth_timestamp = time.time()
+        # ✅ SCOPE must be included HERE (not in auth_url)
+        client = OAuth2Session(
+            client_id=Config.GOOGLE_CLIENT_ID,
+            redirect_uri=Config.REDIRECT_URI,
+            scope="openid email profile"
+        )
 
-            # Get `redirect` param from the query and save for after login
-            query_params = st.query_params
-            redirect_url = query_params.get("redirect", "/")
-            st.session_state["shopify_return_url"] = redirect_url
-            encoded_redirect = urllib.parse.quote(redirect_url)
+        auth_url, _ = client.create_authorization_url(
+            "https://accounts.google.com/o/oauth2/v2/auth",
+            access_type="offline",
+            prompt="consent",
+            include_granted_scopes="true",
+            state="google"
+        )
 
-            client = OAuth2Session(
-                client_id=Config.GOOGLE_CLIENT_ID,
-                redirect_uri=Config.REDIRECT_URI,
-                scope="openid email profile"
-            )
+        print("✅ FINAL AUTH URL:", auth_url)
+        return auth_url
 
-            auth_url, _ = client.create_authorization_url(
-                "https://accounts.google.com/o/oauth2/v2/auth",
-                access_type="offline",
-                prompt="consent",
-                state=state
-            )
 
-            return f"{auth_url}&redirect=return"
 
-        except Exception as e:
-            logger.error(f"Error generating Google Auth URL: {str(e)}")
-            return None
+
+
+
 
     @staticmethod
     def handle_google_callback(code):
@@ -318,25 +311,16 @@ class OAuthService:
                 client_id=Config.GOOGLE_CLIENT_ID,
                 redirect_uri=Config.REDIRECT_URI
             )
-
             token = client.fetch_token(
                 "https://oauth2.googleapis.com/token",
                 code=code,
                 client_secret=Config.GOOGLE_CLIENT_SECRET
             )
-
-            user_info = client.get("https://www.googleapis.com/oauth2/v2/userinfo")
-            if user_info.status_code != 200:
-                logger.error(f"Failed to get user info: {user_info.text}")
-                return None
-
-            return user_info.json()
-
+            user_info = client.get("https://www.googleapis.com/oauth2/v3/userinfo").json()
+            return user_info
         except Exception as e:
             logger.error(f"OAuth callback failed: {str(e)}")
             return None
-
-
 
 # --- HELPER FUNCTIONS ---
 
@@ -466,20 +450,17 @@ def complete_login(user_data):
     redirect_param = st.query_params.get("redirect")
     if redirect_param == "return":
         st.markdown("""
-        <script>
-            const returnUrl = localStorage.getItem("shopify_return_url");
-            if (returnUrl) {
+            <script>
+              const returnUrl = localStorage.getItem("shopify_return_url");
+              if (returnUrl) {
                 alert("Thanks for using RingExpert! Returning to your shopping...");
                 setTimeout(() => {
-                    window.location.href = returnUrl;
+                  window.location.href = returnUrl;
                 }, 1500);
-            }
-        </script>
-    """, unsafe_allow_html=True)
-
-    st.experimental_set_query_params()  # ✅ Clear ?redirect=return from URL
-    return  # ✅ Stop Streamlit execution
-
+              }
+            </script>
+        """, unsafe_allow_html=True)
+        return  # ✅ stop here to allow redirect
 
     # If not returning to Shopify, continue normal flow
     st.rerun()
@@ -1287,15 +1268,12 @@ def handle_oauth_callback():
         st.error(f"OAuth error: {error}")
         return
 
-    if code and state == st.session_state.get("oauth_state"):  # Validate state matches
+    if code and state == "google":
         try:
             user_info = OAuthService.handle_google_callback(code)
             if user_info:
                 email = user_info.get("email")
                 if email:
-                    # ✅ Clear query params
-                    st.query_params.clear()
-
                     user = storage.get_user(email)
                     if not user:
                         user = storage.create_user(
@@ -1306,29 +1284,29 @@ def handle_oauth_callback():
                             first_name=user_info.get("given_name", ""),
                             last_name=user_info.get("family_name", "")
                         )
-
                     if user:
-                        # ✅ Reset session and login
-                        st.session_state.clear()
                         complete_login(user)
 
-                        # ✅ Inject JavaScript redirect (reads from localStorage)
-                        st.markdown("""
-                            <script>
-                                const returnUrl = localStorage.getItem("shopify_return_url");
-                                if (returnUrl) {
-                                    setTimeout(() => {
-                                        window.location.href = returnUrl;
-                                    }, 800);
-                                }
-                            </script>
-                        """, unsafe_allow_html=True)
-                        return
+                        # ✅ Shopify return redirect logic here
+                        redirect_param = st.query_params.get("redirect")
+                        if st.session_state.get("logged_in") and redirect_param == "return":
+                            st.markdown("""
+                                <script>
+                                    const returnUrl = localStorage.getItem("shopify_return_url");
+                                    if (returnUrl) {
+                                        alert("Thanks for using RingExpert! Returning to your shopping...");
+                                        setTimeout(() => {
+                                            window.location.href = returnUrl;
+                                        }, 1500);
+                                    }
+                                </script>
+                            """, unsafe_allow_html=True)
+
+                        st.query_params.clear()
 
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
             logger.error(f"OAuth callback error: {str(e)}")
-
 
 
 def load_responsive_css():
@@ -1695,15 +1673,35 @@ def restore_user_id_from_url():
 
 
 def main():
-    handle_oauth_callback()  # ✅ Must be early
+    handle_oauth_callback()
     restore_user_id_from_url()
-    
+
     threading.Thread(target=warm_up_bot).start()
 
     load_css()
     load_responsive_css()
 
-    show_chat_ui()  # ✅ Your chatbot or main interface here
+    # Ensure sidebar toggle appears
+    st.markdown("""<style>[data-testid="collapsedControl"] { display: block !important; }</style>""", unsafe_allow_html=True)
+
+    # ✅ FINAL FIX: Hide only Streamlit crown (Manage App) on all views
+    st.markdown("""
+    <style>
+    [data-testid="stStatusWidget"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    @media (max-width: 768px) {
+        [data-testid="stStatusWidget"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    show_chat_ui()
+
 
 if __name__ == "__main__":
     main()
