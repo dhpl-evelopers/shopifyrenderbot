@@ -283,12 +283,12 @@ class OAuthService:
     @staticmethod
     def get_google_auth_url():
         try:
-            import urllib.parse  # ✅ Proper place
+            import urllib.parse
             state = str(uuid.uuid4())
             st.session_state.oauth_state = state
             st.session_state.oauth_timestamp = time.time()
 
-            # ✅ Get redirect param
+            # Get `redirect` param from the query and save for after login
             query_params = st.query_params
             redirect_url = query_params.get("redirect", "/")
             st.session_state["shopify_return_url"] = redirect_url
@@ -307,16 +307,14 @@ class OAuthService:
                 state=state
             )
 
-            full_auth_url = f"{auth_url}&redirect={encoded_redirect}"
-            return full_auth_url
+            return f"{auth_url}&redirect={encoded_redirect}"
 
         except Exception as e:
             logger.error(f"Error generating Google Auth URL: {str(e)}")
             return None
 
-
         
-    @staticmethod
+       @staticmethod
     def handle_google_callback(code):
         try:
             client = OAuth2Session(
@@ -336,6 +334,69 @@ class OAuthService:
         except Exception as e:
             logger.error(f"OAuth callback failed: {str(e)}")
             return None
+
+def handle_oauth_callback():
+    import urllib.parse
+
+    query_params = st.query_params
+    code = query_params.get("code")
+    state = query_params.get("state")
+    error = query_params.get("error")
+    redirect_url = query_params.get("redirect")
+
+    logger.info(f"🔁 OAuth Callback Triggered | code={code} | state={state} | error={error}")
+
+    if error:
+        st.error(f"OAuth error: {error}")
+        return
+
+    if code and state:
+        if state != st.session_state.get("oauth_state"):
+            st.error("Invalid OAuth state.")
+            return
+
+        try:
+            user_info = OAuthService.handle_google_callback(code)
+            if not user_info:
+                st.error("Failed to fetch user info.")
+                return
+
+            email = user_info.get("email")
+            if not email:
+                st.error("No email returned from Google.")
+                return
+
+            # Optional clean up
+            st.session_state.pop("oauth_state", None)
+            st.session_state.pop("oauth_timestamp", None)
+
+            # Save user
+            user = storage.get_user(email) or storage.create_user(
+                email=email,
+                provider="google",
+                username=email.split('@')[0],
+                full_name=user_info.get("name", ""),
+                first_name=user_info.get("given_name", ""),
+                last_name=user_info.get("family_name", "")
+            )
+
+            if user:
+                complete_login(user)  # This should set session state
+                st.experimental_set_query_params()  # Clean up query URL
+
+                if redirect_url:
+                    decoded = urllib.parse.unquote(redirect_url)
+                    st.success("✅ Login successful! Redirecting...")
+                    st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded}'>", unsafe_allow_html=True)
+                    st.stop()
+
+                # Fallback rerun
+                st.rerun()
+
+        except Exception as e:
+            st.error(f"OAuth callback failed: {str(e)}")
+
+
 
     
 # --- HELPER FUNCTIONS ---
@@ -1694,29 +1755,15 @@ def restore_user_id_from_url():
 def main():
     query_params = st.query_params
 
-    # ✅ Handle Google OAuth callback only if code and state are present
     if "code" in query_params and "state" in query_params:
         handle_oauth_callback()
-        return  # ✅ Stop further execution
+        return
 
     restore_user_id_from_url()
     threading.Thread(target=warm_up_bot).start()
     load_css()
     load_responsive_css()
-
-    # Ensure sidebar toggle appears
-    st.markdown("""<style>[data-testid="collapsedControl"] { display: block !important; }</style>""", unsafe_allow_html=True)
-
-    # Hide Streamlit top banner (Manage App)
-    st.markdown("""
-    <style>
-    [data-testid="stStatusWidget"] {
-        display: none !important;
-        visibility: hidden !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
+    st.markdown("<style>[data-testid='collapsedControl'] { display: block !important; }</style>", unsafe_allow_html=True)
     show_chat_ui()
 
 
