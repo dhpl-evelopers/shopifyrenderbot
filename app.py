@@ -278,12 +278,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class OAuthService:
     @staticmethod
     def get_google_auth_url():
         try:
-            import urllib.parse
             state = str(uuid.uuid4())
             st.session_state.oauth_state = state
             st.session_state.oauth_timestamp = time.time()
@@ -340,8 +338,6 @@ class OAuthService:
 
 
 def handle_oauth_callback():
-    import urllib.parse
-
     query_params = st.query_params
     code = query_params.get("code")
     state = query_params.get("state")
@@ -398,7 +394,6 @@ def handle_oauth_callback():
 
         except Exception as e:
             st.error(f"OAuth callback failed: {str(e)}")
-    
 # --- HELPER FUNCTIONS ---
 
 
