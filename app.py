@@ -466,17 +466,20 @@ def complete_login(user_data):
     redirect_param = st.query_params.get("redirect")
     if redirect_param == "return":
         st.markdown("""
-            <script>
-              const returnUrl = localStorage.getItem("shopify_return_url");
-              if (returnUrl) {
+        <script>
+            const returnUrl = localStorage.getItem("shopify_return_url");
+            if (returnUrl) {
                 alert("Thanks for using RingExpert! Returning to your shopping...");
                 setTimeout(() => {
-                  window.location.href = returnUrl;
+                    window.location.href = returnUrl;
                 }, 1500);
-              }
-            </script>
-        """, unsafe_allow_html=True)
-        return  # ✅ stop here to allow redirect
+            }
+        </script>
+    """, unsafe_allow_html=True)
+
+    st.experimental_set_query_params()  # ✅ Clear ?redirect=return from URL
+    return  # ✅ Stop Streamlit execution
+
 
     # If not returning to Shopify, continue normal flow
     st.rerun()
