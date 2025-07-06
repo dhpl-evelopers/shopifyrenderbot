@@ -313,32 +313,30 @@ class OAuthService:
             logger.error(f"Error generating Google Auth URL: {str(e)}")
             return None
 
-        
-       @staticmethod
-       def handle_google_callback(code):
-           try:
-               client = OAuth2Session(
-                   client_id=Config.GOOGLE_CLIENT_ID,
-                   redirect_uri=Config.REDIRECT_URI
-               )
-               
-               token = client.fetch_token(
-                   "https://oauth2.googleapis.com/token",
-                   code=code,
-                   client_secret=Config.GOOGLE_CLIENT_SECRET
-               )
-               
-               user_info = client.get("https://www.googleapis.com/oauth2/v2/userinfo")
-               if user_info.status_code != 200:
-                   logger.error(f"Failed to get user info: {user_info.text}")
-                   return None
-                   
-                   return user_info.json()
-           
-           except Exception as e:
-               logger.error(f"OAuth callback failed: {str(e)}")
-               
-               return None
+    @staticmethod
+    def handle_google_callback(code):
+        try:
+            client = OAuth2Session(
+                client_id=Config.GOOGLE_CLIENT_ID,
+                redirect_uri=Config.REDIRECT_URI
+            )
+
+            token = client.fetch_token(
+                "https://oauth2.googleapis.com/token",
+                code=code,
+                client_secret=Config.GOOGLE_CLIENT_SECRET
+            )
+
+            user_info = client.get("https://www.googleapis.com/oauth2/v2/userinfo")
+            if user_info.status_code != 200:
+                logger.error(f"Failed to get user info: {user_info.text}")
+                return None
+
+            return user_info.json()
+
+        except Exception as e:
+            logger.error(f"OAuth callback failed: {str(e)}")
+            return None
 
 
 def handle_oauth_callback():
@@ -388,22 +386,18 @@ def handle_oauth_callback():
 
             if user:
                 st.experimental_set_query_params()  # Clean up query URL
-                
+
                 if redirect_url:
                     decoded = urllib.parse.unquote(redirect_url)
                     st.success("Login successful! Redirecting...")
                     st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded}'>", unsafe_allow_html=True)
                     st.stop()
 
-
                 # Fallback rerun
                 st.rerun()
 
         except Exception as e:
             st.error(f"OAuth callback failed: {str(e)}")
-
-
-
     
 # --- HELPER FUNCTIONS ---
 
