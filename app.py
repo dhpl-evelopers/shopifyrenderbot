@@ -283,13 +283,12 @@ class OAuthService:
     @staticmethod
     def get_google_auth_url():
         try:
-            import urllib.parse
-
+            import urllib.parse  # ✅ Proper place
             state = str(uuid.uuid4())
             st.session_state.oauth_state = state
             st.session_state.oauth_timestamp = time.time()
 
-            # Get redirect param
+            # ✅ Get redirect param
             query_params = st.query_params
             redirect_url = query_params.get("redirect", "/")
             st.session_state["shopify_return_url"] = redirect_url
@@ -314,6 +313,7 @@ class OAuthService:
         except Exception as e:
             logger.error(f"Error generating Google Auth URL: {str(e)}")
             return None
+
 
         
     @staticmethod
