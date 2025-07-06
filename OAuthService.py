@@ -1,10 +1,11 @@
 import logging
 from authlib.integrations.requests_client import OAuth2Session
-from config import Config # Ensure this Config is the one you intend to use (preferably loaded from config.py)
+from config import Config  # Make sure Config is correctly loading the credentials
 
 logger = logging.getLogger(__name__)
 
 class OAuthService:
+
     @staticmethod
     def get_google_auth_url():
         try:
@@ -18,12 +19,13 @@ class OAuthService:
                 scope="openid email profile",
                 access_type="offline",
                 prompt="consent",
-                state="google"
+                state="google"  # Optional: consider generating random state for security
             )
 
             return auth_url
+
         except Exception as e:
-            logger.error(f"Error generating Google Auth URL: {str(e)}")
+            logger.error(f"[OAuthService] Error generating Google Auth URL: {str(e)}")
             return None
 
     @staticmethod
@@ -35,14 +37,19 @@ class OAuthService:
             )
 
             token = client.fetch_token(
-                "https://oauth2.googleapis.com/token",
+                url="https://oauth2.googleapis.com/token",
                 code=code,
                 client_secret=Config.GOOGLE_CLIENT_SECRET
             )
 
-            user_info = client.get("https://www.googleapis.com/oauth2/v3/userinfo").json()
-            return user_info
+            user_info_response = client.get("https://www.googleapis.com/oauth2/v3/userinfo")
+
+            if user_info_response.status_code != 200:
+                logger.error(f"[OAuthService] Failed to fetch user info: {user_info_response.text}")
+                return None
+
+            return user_info_response.json()
 
         except Exception as e:
-            logger.error(f"OAuth callback failed: {str(e)}")
+            logger.error(f"[OAuthService] OAuth callback failed: {str(e)}")
             return None
