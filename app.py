@@ -315,25 +315,31 @@ class OAuthService:
 
         
        @staticmethod
-    def handle_google_callback(code):
-        try:
-            client = OAuth2Session(
-                client_id=Config.GOOGLE_CLIENT_ID,
-                redirect_uri=Config.REDIRECT_URI
-            )
+       def handle_google_callback(code):
+           try:
+               client = OAuth2Session(
+                   client_id=Config.GOOGLE_CLIENT_ID,
+                   redirect_uri=Config.REDIRECT_URI
+               )
+               
+               token = client.fetch_token(
+                   "https://oauth2.googleapis.com/token",
+                   code=code,
+                   client_secret=Config.GOOGLE_CLIENT_SECRET
+               )
+               
+               user_info = client.get("https://www.googleapis.com/oauth2/v2/userinfo")
+               if user_info.status_code != 200:
+                   logger.error(f"Failed to get user info: {user_info.text}")
+                   return None
+                   
+                   return user_info.json()
+           
+           except Exception as e:
+               logger.error(f"OAuth callback failed: {str(e)}")
+               
+               return None
 
-            token = client.fetch_token(
-                "https://oauth2.googleapis.com/token",
-                code=code,
-                client_secret=Config.GOOGLE_CLIENT_SECRET
-            )
-
-            user_info = client.get("https://www.googleapis.com/oauth2/v3/userinfo").json()
-            return user_info
-
-        except Exception as e:
-            logger.error(f"OAuth callback failed: {str(e)}")
-            return None
 
 def handle_oauth_callback():
     import urllib.parse
