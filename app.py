@@ -282,13 +282,12 @@ logger = logging.getLogger(__name__)
 class OAuthService:
     @staticmethod
     def get_google_auth_url():
-    try:
-        import urllib.parse  # ✅ Now properly indented
-
-        state = str(uuid.uuid4())
-        st.session_state.oauth_state = state
-        st.session_state.oauth_timestamp = time.time()
-
+        try:
+            import urllib.parse  # ✅ Now properly indented
+            state = str(uuid.uuid4())
+            st.session_state.oauth_state = state
+            st.session_state.oauth_timestamp = time.time()
+            
         # Get redirect param
         query_params = st.query_params
         redirect_url = query_params.get("redirect", "/")
