@@ -282,40 +282,38 @@ logger = logging.getLogger(__name__)
 class OAuthService:
     @staticmethod
     def get_google_auth_url():
-        try:
-            import urllib.parse
+    try:
+        import urllib.parse  # ✅ Now properly indented
 
-            state = str(uuid.uuid4())
-            st.session_state.oauth_state = state
-            st.session_state.oauth_timestamp = time.time()
+        state = str(uuid.uuid4())
+        st.session_state.oauth_state = state
+        st.session_state.oauth_timestamp = time.time()
 
-            # ✅ Get redirect param from Streamlit query
-            query_params = st.query_params
-            redirect_url = query_params.get("redirect", "/")  # fallback
-            st.session_state["shopify_return_url"] = redirect_url
-            encoded_redirect = urllib.parse.quote(redirect_url)
+        # Get redirect param
+        query_params = st.query_params
+        redirect_url = query_params.get("redirect", "/")
+        st.session_state["shopify_return_url"] = redirect_url
+        encoded_redirect = urllib.parse.quote(redirect_url)
 
-            client = OAuth2Session(
-                client_id=Config.GOOGLE_CLIENT_ID,
-                redirect_uri=Config.REDIRECT_URI,
-                scope="openid email profile"
-            )
+        client = OAuth2Session(
+            client_id=Config.GOOGLE_CLIENT_ID,
+            redirect_uri=Config.REDIRECT_URI,
+            scope="openid email profile"
+        )
 
-            auth_url, _ = client.create_authorization_url(
-                "https://accounts.google.com/o/oauth2/v2/auth",
-                access_type="offline",
-                prompt="consent",
-                state=state
-            )
+        auth_url, _ = client.create_authorization_url(
+            "https://accounts.google.com/o/oauth2/v2/auth",
+            access_type="offline",
+            prompt="consent",
+            state=state
+        )
 
-            # ✅ Append redirect manually to the auth_url
-            full_auth_url = f"{auth_url}&redirect={encoded_redirect}"
+        full_auth_url = f"{auth_url}&redirect={encoded_redirect}"
+        return full_auth_url
 
-            return full_auth_url
-
-        except Exception as e:
-            logger.error(f"Error generating Google Auth URL: {str(e)}")
-            return None
+    except Exception as e:
+        logger.error(f"Error generating Google Auth URL: {str(e)}")
+        return None
 
     @staticmethod
     def handle_google_callback(code):
