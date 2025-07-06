@@ -337,68 +337,7 @@ class OAuthService:
             return None
 
 
-def handle_oauth_callback():
-    query_params = st.query_params
-    code = query_params.get("code")
-    state = query_params.get("state")
-    error = query_params.get("error")
-    redirect_url = query_params.get("redirect")
 
-    logger.info(f"🔁 OAuth Callback Triggered | code={code} | state={state} | error={error}")
-
-    if error:
-        st.error(f"OAuth error: {error}")
-        return
-
-    if code and state:
-        if state != st.session_state.get("oauth_state"):
-            st.error("Invalid OAuth state.")
-            return
-
-        try:
-            user_info = OAuthService.handle_google_callback(code)
-            if not user_info:
-                st.error("Failed to fetch user info.")
-                return
-
-            email = user_info.get("email")
-            if not email:
-                st.error("No email returned from Google.")
-                return
-
-            # Optional clean up
-            st.session_state.pop("oauth_state", None)
-            st.session_state.pop("oauth_timestamp", None)
-
-            # Save user
-            user = storage.get_user(email) or storage.create_user(
-                email=email,
-                provider="google",
-                username=email.split('@')[0],
-                full_name=user_info.get("name", ""),
-                first_name=user_info.get("given_name", ""),
-                last_name=user_info.get("family_name", "")
-            )
-
-            if user:
-                st.experimental_set_query_params()  # Clean up query URL
-
-                if redirect_url:
-                    decoded = urllib.parse.unquote(redirect_url)  # ✅ Define it
-                    st.success("Login successful! Redirecting...")
-                    st.markdown(f"""
-                    <script>
-                    window.location.href = "{decoded}";
-                    </script>
-                    """, unsafe_allow_html=True)
-                    st.stop()
-
-
-                # Fallback rerun
-                st.rerun()
-
-        except Exception as e:
-            st.error(f"OAuth callback failed: {str(e)}")
 # --- HELPER FUNCTIONS ---
 
 
