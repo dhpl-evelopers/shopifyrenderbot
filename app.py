@@ -282,37 +282,38 @@ logger = logging.getLogger(__name__)
 class OAuthService:
     @staticmethod
     def get_google_auth_url():
-    try:
-        import urllib.parse  # ✅ Proper place
-        state = str(uuid.uuid4())
-        st.session_state.oauth_state = state
-        st.session_state.oauth_timestamp = time.time()
+        try:
+            import urllib.parse
 
-        # ✅ Get redirect param
-        query_params = st.query_params
-        redirect_url = query_params.get("redirect", "/")
-        st.session_state["shopify_return_url"] = redirect_url
-        encoded_redirect = urllib.parse.quote(redirect_url)
+            state = str(uuid.uuid4())
+            st.session_state.oauth_state = state
+            st.session_state.oauth_timestamp = time.time()
 
-        client = OAuth2Session(
-            client_id=Config.GOOGLE_CLIENT_ID,
-            redirect_uri=Config.REDIRECT_URI,
-            scope="openid email profile"
-        )
+            # Get redirect param
+            query_params = st.query_params
+            redirect_url = query_params.get("redirect", "/")
+            st.session_state["shopify_return_url"] = redirect_url
+            encoded_redirect = urllib.parse.quote(redirect_url)
 
-        auth_url, _ = client.create_authorization_url(
-            "https://accounts.google.com/o/oauth2/v2/auth",
-            access_type="offline",
-            prompt="consent",
-            state=state
-        )
+            client = OAuth2Session(
+                client_id=Config.GOOGLE_CLIENT_ID,
+                redirect_uri=Config.REDIRECT_URI,
+                scope="openid email profile"
+            )
 
-        full_auth_url = f"{auth_url}&redirect={encoded_redirect}"
-        return full_auth_url
+            auth_url, _ = client.create_authorization_url(
+                "https://accounts.google.com/o/oauth2/v2/auth",
+                access_type="offline",
+                prompt="consent",
+                state=state
+            )
 
-    except Exception as e:
-        logger.error(f"Error generating Google Auth URL: {str(e)}")
-        return None
+            full_auth_url = f"{auth_url}&redirect={encoded_redirect}"
+            return full_auth_url
+
+        except Exception as e:
+            logger.error(f"Error generating Google Auth URL: {str(e)}")
+            return None
 
         
     @staticmethod
