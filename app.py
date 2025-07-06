@@ -1288,9 +1288,9 @@ def handle_oauth_callback():
             if user_info:
                 email = user_info.get("email")
                 if email:
-                    # Clear query params immediately to prevent re-processing
+                    # ✅ Clear query params
                     st.query_params.clear()
-                    
+
                     user = storage.get_user(email)
                     if not user:
                         user = storage.create_user(
@@ -1301,31 +1301,29 @@ def handle_oauth_callback():
                             first_name=user_info.get("given_name", ""),
                             last_name=user_info.get("family_name", "")
                         )
-                    
+
                     if user:
-                        # Force a new session state
+                        # ✅ Reset session and login
                         st.session_state.clear()
                         complete_login(user)
-                        
-                        # Add small delay before Shopify redirect to ensure session is set
-                        if st.query_params.get("redirect") == "return":
-                            st.markdown("""
-                                <script>
+
+                        # ✅ Inject JavaScript redirect (reads from localStorage)
+                        st.markdown("""
+                            <script>
+                                const returnUrl = localStorage.getItem("shopify_return_url");
+                                if (returnUrl) {
                                     setTimeout(() => {
-                                        const returnUrl = localStorage.getItem("shopify_return_url");
-                                        if (returnUrl) {
-                                            window.location.href = returnUrl;
-                                        }
-                                    }, 500);
-                                </script>
-                            """, unsafe_allow_html=True)
-                        else:
-                            # Force a rerun to ensure all state is properly loaded
-                            st.rerun()
+                                        window.location.href = returnUrl;
+                                    }, 800);
+                                }
+                            </script>
+                        """, unsafe_allow_html=True)
+                        return
 
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
             logger.error(f"OAuth callback error: {str(e)}")
+
 
 
 def load_responsive_css():
