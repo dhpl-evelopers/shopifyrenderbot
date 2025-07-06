@@ -285,41 +285,40 @@ class OAuthService:
         try:
             import urllib.parse
 
-        state = str(uuid.uuid4())
-        st.session_state.oauth_state = state
-        st.session_state.oauth_timestamp = time.time()
+            state = str(uuid.uuid4())
+            st.session_state.oauth_state = state
+            st.session_state.oauth_timestamp = time.time()
 
-        # ✅ Get redirect param from Streamlit query
-        query_params = st.query_params
-        redirect_url = query_params.get("redirect", "/")  # fallback if missing
-        st.session_state["shopify_return_url"] = redirect_url  # store for later
-        encoded_redirect = urllib.parse.quote(redirect_url)
+            # ✅ Get redirect param from Streamlit query
+            query_params = st.query_params
+            redirect_url = query_params.get("redirect", "/")  # fallback
+            st.session_state["shopify_return_url"] = redirect_url
+            encoded_redirect = urllib.parse.quote(redirect_url)
 
-        client = OAuth2Session(
-            client_id=Config.GOOGLE_CLIENT_ID,
-            redirect_uri=Config.REDIRECT_URI,  # this will be https://.../auth/callback
-            scope="openid email profile"
-        )
+            client = OAuth2Session(
+                client_id=Config.GOOGLE_CLIENT_ID,
+                redirect_uri=Config.REDIRECT_URI,
+                scope="openid email profile"
+            )
 
-        auth_url, _ = client.create_authorization_url(
-            "https://accounts.google.com/o/oauth2/v2/auth",
-            access_type="offline",
-            prompt="consent",
-            state=state,
-        )
+            auth_url, _ = client.create_authorization_url(
+                "https://accounts.google.com/o/oauth2/v2/auth",
+                access_type="offline",
+                prompt="consent",
+                state=state
+            )
 
-        # ✅ Append `redirect` manually to the auth_url
-        full_auth_url = f"{auth_url}&redirect={encoded_redirect}"
+            # ✅ Append redirect manually to the auth_url
+            full_auth_url = f"{auth_url}&redirect={encoded_redirect}"
 
-        return full_auth_url
+            return full_auth_url
 
-    except Exception as e:
-        logger.error(f"Error generating Google Auth URL: {str(e)}")
-        return None
-            
+        except Exception as e:
+            logger.error(f"Error generating Google Auth URL: {str(e)}")
+            return None
 
     @staticmethod
-    def handle_google_callback(code):  # ✅ Fixed: added @staticmethod
+    def handle_google_callback(code):
         try:
             client = OAuth2Session(
                 client_id=Config.GOOGLE_CLIENT_ID,
@@ -339,63 +338,63 @@ class OAuthService:
             logger.error(f"OAuth callback failed: {str(e)}")
             return None
 
-    
-@staticmethod
-def handle_oauth_callback():
-    query_params = st.query_params
-    code = query_params.get("code")
-    state = query_params.get("state")
-    error = query_params.get("error")
-    redirect_url = query_params.get("redirect")
+    @staticmethod
+    def handle_oauth_callback():
+        query_params = st.query_params
+        code = query_params.get("code")
+        state = query_params.get("state")
+        error = query_params.get("error")
+        redirect_url = query_params.get("redirect")
 
-    if error:
-        st.error(f"OAuth error: {error}")
-        return
-
-    if code and state:
-        if state != st.session_state.get("oauth_state"):
-            st.error("Invalid OAuth state")
+        if error:
+            st.error(f"OAuth error: {error}")
             return
 
-        try:
-            user_info = OAuthService.handle_google_callback(code)
-            if not user_info:
-                st.error("Failed to get user info")
+        if code and state:
+            if state != st.session_state.get("oauth_state"):
+                st.error("Invalid OAuth state")
                 return
 
-            email = user_info.get("email")
-            if not email:
-                st.error("No email returned")
-                return
+            try:
+                user_info = OAuthService.handle_google_callback(code)
+                if not user_info:
+                    st.error("Failed to get user info")
+                    return
 
-            # Clean up
-            st.session_state.pop("oauth_state", None)
-            st.session_state.pop("oauth_timestamp", None)
+                email = user_info.get("email")
+                if not email:
+                    st.error("No email returned")
+                    return
 
-            # Save user
-            user = storage.get_user(email) or storage.create_user(
-                email=email,
-                provider="google",
-                username=email.split('@')[0],
-                full_name=user_info.get("name", ""),
-                first_name=user_info.get("given_name", ""),
-                last_name=user_info.get("family_name", "")
-            )
+                # Clean up
+                st.session_state.pop("oauth_state", None)
+                st.session_state.pop("oauth_timestamp", None)
 
-            if user:
-                complete_login(user)
-                st.experimental_set_query_params()
+                # Save or create user
+                user = storage.get_user(email) or storage.create_user(
+                    email=email,
+                    provider="google",
+                    username=email.split('@')[0],
+                    full_name=user_info.get("name", ""),
+                    first_name=user_info.get("given_name", ""),
+                    last_name=user_info.get("family_name", "")
+                )
 
-                if redirect_url:
-                    decoded = urllib.parse.unquote(redirect_url)
-                    st.success("Redirecting...")
-                    st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded}'>", unsafe_allow_html=True)
-                    st.stop()
+                if user:
+                    complete_login(user)
+                    st.experimental_set_query_params()
 
-                st.rerun()
+                    if redirect_url:
+                        decoded = urllib.parse.unquote(redirect_url)
+                        st.success("Redirecting...")
+                        st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded}'>", unsafe_allow_html=True)
+                        st.stop()
 
-        except Exception as e:
-            st.error(f"Auth failed: {str(e)}")
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"Auth failed: {str(e)}")
+
 
 # --- HELPER FUNCTIONS ---
 
