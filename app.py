@@ -283,7 +283,7 @@ class OAuthService:
     @staticmethod
     def get_google_auth_url():
         try:
-        import urllib.parse
+            import urllib.parse
 
         state = str(uuid.uuid4())
         st.session_state.oauth_state = state
@@ -316,6 +316,7 @@ class OAuthService:
     except Exception as e:
         logger.error(f"Error generating Google Auth URL: {str(e)}")
         return None
+            
 
     @staticmethod
     def handle_google_callback(code):  # ✅ Fixed: added @staticmethod
