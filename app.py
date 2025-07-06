@@ -338,64 +338,7 @@ class OAuthService:
             logger.error(f"OAuth callback failed: {str(e)}")
             return None
 
-    @staticmethod
-    def handle_oauth_callback():
-        query_params = st.query_params
-        code = query_params.get("code")
-        state = query_params.get("state")
-        error = query_params.get("error")
-        redirect_url = query_params.get("redirect")
-
-        if error:
-            st.error(f"OAuth error: {error}")
-            return
-
-        if code and state:
-            if state != st.session_state.get("oauth_state"):
-                st.error("Invalid OAuth state")
-                return
-
-            try:
-                user_info = OAuthService.handle_google_callback(code)
-                if not user_info:
-                    st.error("Failed to get user info")
-                    return
-
-                email = user_info.get("email")
-                if not email:
-                    st.error("No email returned")
-                    return
-
-                # Clean up
-                st.session_state.pop("oauth_state", None)
-                st.session_state.pop("oauth_timestamp", None)
-
-                # Save or create user
-                user = storage.get_user(email) or storage.create_user(
-                    email=email,
-                    provider="google",
-                    username=email.split('@')[0],
-                    full_name=user_info.get("name", ""),
-                    first_name=user_info.get("given_name", ""),
-                    last_name=user_info.get("family_name", "")
-                )
-
-                if user:
-                    complete_login(user)
-                    st.experimental_set_query_params()
-
-                    if redirect_url:
-                        decoded = urllib.parse.unquote(redirect_url)
-                        st.success("Redirecting...")
-                        st.markdown(f"<meta http-equiv='refresh' content='1; url={decoded}'>", unsafe_allow_html=True)
-                        st.stop()
-
-                    st.rerun()
-
-            except Exception as e:
-                st.error(f"Auth failed: {str(e)}")
-
-
+    
 # --- HELPER FUNCTIONS ---
 
 
