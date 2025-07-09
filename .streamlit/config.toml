@@ -1,4 +1,5 @@
 [server]
+port = $PORT
 headless = true
 enableCORS = false
 enableXsrfProtection = false
@@ -6,8 +7,8 @@ allowEmbedding = true
 
 [theme]
 base = "light"
-primaryColor = "#000000"                     # Pure black for buttons and highlights
-backgroundColor = "#ffffff"                  # True white background
-secondaryBackgroundColor = "#f7f7f7"         # Very light gray for cards and sidebars
-textColor = "#000000"                        # Solid black text
-font = "sans serif"                          # Use "sans serif", "monospace", or "serif"
+primaryColor = "#000000"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f7f7f7"
+textColor = "#000000"
+font = "sans serif"
