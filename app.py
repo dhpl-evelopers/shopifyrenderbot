@@ -14,6 +14,12 @@ import re
 import base64
 import threading
 
+import re  # already imported, so you can skip if it's there
+
+def remove_doc_references(text):
+    """Remove [docX] style references from the chatbot output."""
+    return re.sub(r'\[doc\d+\]', '', text)
+
 
 def warm_up_bot():
     try:
@@ -401,9 +407,12 @@ def handle_user_prompt(prompt, uploaded_files=None):
             print(f"⏱️ Chat API responded in {duration:.2f} seconds")
 
             answer = resp.json().get("answer", "Sorry, I didn’t understand that.")
+            cleaned_answer = remove_doc_references(answer)
 
+
+        
         # Append bot reply
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+        st.session_state.messages.append({"role": "assistant", "content": cleaned_answer})
 
         # Save to storage
         if st.session_state.logged_in:
