@@ -899,8 +899,6 @@ def show_chat_ui():
                 st.session_state.show_auth = True
                 st.rerun()
 
-  
-
     # Main Chat UI CSS + Title
     st.markdown("""
     <style>
@@ -982,9 +980,19 @@ def show_chat_ui():
     else:
         for msg in st.session_state.get("messages", []):
             role_class = "user-message" if msg["role"] == "user" else "bot-message"
-            st.markdown(f'<div class="{role_class}">{msg["content"]}</div>', unsafe_allow_html=True)
+            icon = "👤" if msg["role"] == "user" else "🤖"
+            content_html = f"""
+            <div class="{role_class}-wrapper">
+                <div class="chat-icon">{icon}</div>
+                <div class="chat-text">{msg["content"]}</div>
+            </div>
+            """
+            st.markdown(f'<div class="{role_class}">{content_html}</div>', unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)  # close .chat-container
+    # Close main container
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 
     # File upload & input
     st.markdown('<div class="file-upload-container">', unsafe_allow_html=True)
@@ -1229,6 +1237,35 @@ def load_css():
         border-radius: 8px;
         padding: 0.5rem 1rem;
     }
+                .user-message-wrapper, .bot-message-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.chat-icon {
+  font-size: 22px;
+  min-width: 28px;
+  margin-top: 2px;
+}
+
+.chat-text {
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+  .chat-icon {
+    font-size: 20px;
+    min-width: 24px;
+  }
+  .chat-text {
+    font-size: 14px;
+  }
+}
+
 
     @media (max-width: 768px) {
         .user-message, .bot-message {
