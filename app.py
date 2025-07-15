@@ -362,6 +362,20 @@ def process_uploaded_file(uploaded_file):
 
 def handle_user_prompt(prompt, uploaded_files=None):
     uploaded_files = st.session_state.get("uploaded_file_list", [])
+
+    # 🌟 Auto-decorate known prompts with icons
+    icon_map = {
+        "What is Ringsandi?": "💍",
+        "Studio Location?": "📍",
+        "What will I get different at RINGS & I?": "✨",
+        "What is the main difference between 14K and 18K gold?": "💰",
+        "What is the main difference between platinum and gold in terms of purity?": "💎"
+    }
+    for keyword, icon in icon_map.items():
+        if prompt.strip().lower() == keyword.strip().lower():
+            prompt = f"{icon} {prompt}"
+            break
+
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     # Show uploaded images in chat
@@ -409,10 +423,22 @@ def handle_user_prompt(prompt, uploaded_files=None):
             answer = resp.json().get("answer", "Sorry, I didn’t understand that.")
             cleaned_answer = remove_doc_references(answer)
 
+        # 🎨 Format assistant response with steps, icons, and feedback
+        def format_bot_response(text):
+            steps = [s.strip() for s in text.strip().split(". ") if s.strip()]
+            icons = ["💍", "✨", "🔹", "🔸", "📌", "📍", "🧠", "📋", "💡", "🛠️", "🧾", "📦", "📞"]
+            formatted = "<div style='line-height:1.6; font-size:15px;'>"
+            formatted += "Sure! Here's what I found for you 👇<br><br>"
+            for idx, step in enumerate(steps):
+                icon = icons[idx % len(icons)]
+                formatted += f"{icon} {step.rstrip('.')}<br>"
+            formatted += "<br><i>🤖 Would you like to explore this further?<br>"
+            formatted += "👉 'Tell me about appointments'<br>"
+            formatted += "👉 'What ring styles do you have?'</i></div>"
+            return formatted
 
-        
-        # Append bot reply
-        st.session_state.messages.append({"role": "assistant", "content": cleaned_answer})
+        formatted_answer = format_bot_response(cleaned_answer)
+        st.session_state.messages.append({"role": "assistant", "content": formatted_answer})
 
         # Save to storage
         if st.session_state.logged_in:
