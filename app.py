@@ -425,28 +425,6 @@ def handle_user_prompt(prompt, uploaded_files=None):
 
         # 🎨 Format assistant response with steps, icons, and feedback
         def format_bot_response(text):
-            # Special formatting for "Studio Location"
-            if "Pune Studio" in text and "Mumbai Studio" in text:
-                return """
-                <div style='line-height: 1.8; font-size: 15px; color: #333;'>
-                    <b>📍 RINGS & I has two studio locations:</b><br><br>
-
-                    <b>1. ✨ Pune Studio</b><br>
-                    <span style="margin-left: 12px;">🏢 301, 3rd Floor, Silver Mist,<br>
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Near Nilyam Theatre, Sadashiv Peth,<br>
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Pune, Maharashtra – 411030</span><br><br>
-
-                    <b>2. 🌟 Mumbai Studio</b><br>
-                    <span style="margin-left: 12px;">🏢 1st Floor, Manubhai Jewellers, Rashmi Celestia,<br>
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;L.T. Road, Mumbai, Maharashtra</span><br><br>
-
-                    <i>🤖 Would you like to explore this further?</i><br>
-                    👉 <b>'Tell me about appointments'</b><br>
-                    👉 <b>'What ring styles do you have?'</b>
-                </div>
-                """
-
-            # Default formatting for other responses
             steps = [s.strip() for s in text.strip().split(". ") if s.strip()]
             icons = ["💍", "✨", "🔹", "🔸", "📌", "📍", "🧠", "📋", "💡", "🛠️", "🧾", "📦", "📞"]
             formatted = "<div style='line-height:1.6; font-size:15px;'>"
@@ -473,6 +451,9 @@ def handle_user_prompt(prompt, uploaded_files=None):
             "role": "assistant",
             "content": f"⚠️ Error getting response: {e}"
         })
+
+
+
 
 
 def complete_login(user_data):
